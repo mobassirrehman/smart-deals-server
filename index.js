@@ -32,7 +32,13 @@ async function run() {
     const productsCollection = db.collection("products");
 
     app.get("/products", async (req, res) => {
-      const cursor = productsCollection.find();
+      const projectsFields = { title: 1, image: 1 };
+      const cursor = productsCollection
+        .find()
+        .sort({ price_min: 1 })
+        .skip(2)
+        .limit(2)
+        .project(projectsFields);
       const result = await cursor.toArray();
       res.send(result);
     });
