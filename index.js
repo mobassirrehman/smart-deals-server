@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const admin = require("firebase-admin");
@@ -60,6 +61,19 @@ async function run() {
     const bidsCollection = db.collection("bids");
     const usersCollection = db.collection("user");
 
+    //jwt related APIs
+    app.post("/getToken", (req, res) => {
+      const loggedUser = req.body;
+      const token = jwt.sign(
+        { email: loggedUser.email },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "1h",
+        }
+      );
+      res.send({ token });
+    });
+
     //Users API
     app.post("/users", async (req, res) => {
       const newUser = req.body;
@@ -100,6 +114,9 @@ async function run() {
 
     app.get("/products/:id", async (req, res) => {
       const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid product ID" });
+      }
       const query = { _id: new ObjectId(id) };
       const result = await productsCollection.findOne(query);
       res.send(result);
@@ -113,6 +130,9 @@ async function run() {
 
     app.patch("/products/:id", async (req, res) => {
       const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid product ID" });
+      }
       const updatedProduct = req.body;
       const query = { _id: new ObjectId(id) };
       const update = {
@@ -127,6 +147,9 @@ async function run() {
 
     app.delete("/products/:id", async (req, res) => {
       const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid product ID" });
+      }
       const query = { _id: new ObjectId(id) };
       const result = await productsCollection.deleteOne(query);
       res.send(result);
@@ -167,6 +190,9 @@ async function run() {
 
     app.delete("/bids/:id", async (req, res) => {
       const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid bid ID" });
+      }
       const query = { _id: new ObjectId(id) };
       const result = await bidsCollection.deleteOne(query);
       res.send(result);
