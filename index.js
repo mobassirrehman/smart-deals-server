@@ -22,7 +22,8 @@ const logger = (req, res, next) => {
 };
 
 const verifyFirebaseToken = async (req, res, next) => {
-  if (!req.headers.authorization) {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
     return res.status(401).send({ message: "unauthorized access" });
   }
   const token = req.headers.authorization.split(" ")[1];
@@ -30,13 +31,32 @@ const verifyFirebaseToken = async (req, res, next) => {
     return res.status(401).send({ message: "unauthorized access" });
   }
   try {
-    const userInfo = await admin.auth().verifyIdToken(token);
-    req.user = userInfo;
-    req.token_email = userInfo.email;
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.token_email = decoded.email;
     next();
-  } catch (error) {
+  } catch {
     return res.status(401).send({ message: "unauthorized access" });
   }
+};
+
+const verifyJWTToken = (req, res, next) => {
+  console.log("in middleware", req.headers);
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+  const token = authorization.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "unauthorized access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
 };
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.0zmmwcn.mongodb.net/?appName=Cluster0`;
@@ -82,7 +102,7 @@ async function run() {
       const query = { email: email };
       const existingUser = await usersCollection.findOne(query);
       if (existingUser) {
-        res.send("user already exists in the database");
+        res.send({ message: "user already exists in the database" });
       } else {
         const result = await usersCollection.insertOne(newUser);
         res.send(result);
@@ -122,7 +142,7 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/products", async (req, res) => {
+    app.post("/products", verifyFirebaseToken, async (req, res) => {
       const newProduct = req.body;
       const result = await productsCollection.insertOne(newProduct);
       res.send(result);
@@ -145,7 +165,7 @@ async function run() {
       res.send(result);
     });
 
-    app.delete("/products/:id", async (req, res) => {
+    app.delete("/products/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       if (!ObjectId.isValid(id)) {
         return res.status(400).send({ message: "Invalid product ID" });
@@ -156,14 +176,14 @@ async function run() {
     });
 
     // bids related APIs
-    app.get("/bids", logger, verifyFirebaseToken, async (req, res) => {
+    app.get("/bids", verifyFirebaseToken, async (req, res) => {
       const email = req.query.email;
       const query = {};
       if (email) {
-        if (email != req.token_email) {
+        query.buyer_email = email;
+        if (email !== req.token_email) {
           return res.status(403).send({ message: "forbidden access" });
         }
-        query.buyer_email = email;
       }
       const cursor = bidsCollection.find(query);
       const result = await cursor.toArray();
@@ -182,13 +202,13 @@ async function run() {
       }
     );
 
-    app.post("/bids", async (req, res) => {
+    app.post("/bids", verifyFirebaseToken, async (req, res) => {
       const newBid = req.body;
       const result = await bidsCollection.insertOne(newBid);
       res.send(result);
     });
 
-    app.delete("/bids/:id", async (req, res) => {
+    app.delete("/bids/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       if (!ObjectId.isValid(id)) {
         return res.status(400).send({ message: "Invalid bid ID" });
